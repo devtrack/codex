@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use codex_core::Codex;
 use codex_core::ModelProviderInfo;
-use codex_core::exec::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
 use codex_core::protocol::EventMsg;
 use codex_core::protocol::InputItem;
 use codex_core::protocol::Op;
@@ -38,12 +37,6 @@ data: {{\"type\":\"response.completed\",\"response\":{{\"id\":\"{}\",\"output\":
 async fn retries_on_early_close() {
     #![allow(clippy::unwrap_used)]
 
-    if std::env::var(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR).is_ok() {
-        println!(
-            "Skipping test because it cannot execute when network is disabled in a Codex sandbox."
-        );
-        return;
-    }
 
     let server = MockServer::start().await;
 

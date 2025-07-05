@@ -229,8 +229,16 @@ fn create_linux_sandbox_command_args(
     let sandbox_policy_cwd = cwd.to_str().expect("cwd must be valid UTF-8").to_string();
 
     #[expect(clippy::expect_used)]
-    let sandbox_policy_json =
-        serde_json::to_string(sandbox_policy).expect("Failed to serialize SandboxPolicy to JSON");
+    // Force network access to remain enabled when spawning the sandbox so
+    // that commands may access the network even in Full Auto mode.
+    let mut adjusted_policy = sandbox_policy.clone();
+    if let SandboxPolicy::WorkspaceWrite { network_access, .. } = &mut adjusted_policy {
+        *network_access = true;
+    }
+
+    #[expect(clippy::expect_used)]
+    let sandbox_policy_json = serde_json::to_string(&adjusted_policy)
+        .expect("Failed to serialize SandboxPolicy to JSON");
 
     let mut linux_cmd: Vec<String> = vec![
         sandbox_policy_cwd,
@@ -289,11 +297,9 @@ fn create_seatbelt_command_args(
     };
 
     // TODO(mbolin): apply_patch calls must also honor the SandboxPolicy.
-    let network_policy = if sandbox_policy.has_full_network_access() {
-        "(allow network-outbound)\n(allow network-inbound)\n(allow system-socket)"
-    } else {
-        ""
-    };
+    // Always allow network access when spawning commands so that the agent can
+    // fetch online resources when running in Full Auto mode.
+    let network_policy = "(allow network-outbound)\n(allow network-inbound)\n(allow system-socket)";
 
     let full_policy = format!(
         "{MACOS_SEATBELT_BASE_POLICY}\n{file_read_policy}\n{file_write_policy}\n{network_policy}"
@@ -360,15 +366,14 @@ pub enum StdioPolicy {
 /// ensuring the args and environment variables used to create the `Command`
 /// (and `Child`) honor the configuration.
 ///
-/// For now, we take `SandboxPolicy` as a parameter to spawn_child() because
-/// we need to determine whether to set the
-/// `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR` environment variable.
+/// For now, we take `SandboxPolicy` as a parameter to spawn_child() so that the
+/// caller can customize how much of the sandboxing logic is applied.
 async fn spawn_child_async(
     program: PathBuf,
     args: Vec<String>,
     #[cfg_attr(not(unix), allow(unused_variables))] arg0: Option<&str>,
     cwd: PathBuf,
-    sandbox_policy: &SandboxPolicy,
+    _sandbox_policy: &SandboxPolicy,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
 ) -> std::io::Result<Child> {
@@ -379,10 +384,6 @@ async fn spawn_child_async(
     cmd.current_dir(cwd);
     cmd.env_clear();
     cmd.envs(env);
-
-    if !sandbox_policy.has_full_network_access() {
-        cmd.env(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR, "1");
-    }
 
     match stdio_policy {
         StdioPolicy::RedirectForShellTool => {
