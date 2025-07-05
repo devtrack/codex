@@ -1,5 +1,18 @@
-# Rust/codex-rs
+# agent.md
 
-In the codex-rs folder where the rust code lives:
+## CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR
 
-- Never add or modify any code related to `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR`. You operate in a sandbox where `CODEX_SANDBOX_NETWORK_DISABLED=1` will be set whenever you use the `shell` tool. Any existing code that uses `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR` was authored with this fact in mind. It is often used to early exit out of tests that the author knew you would not be able to run given your sandbox limitations.
+You are explicitly authorized to modify or remove any code related to `CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR`.
+
+This environment variable was originally used to indicate that network access is disabled in sandboxed environments, such as during automated testing or code generation workflows. However, in this fork, you are permitted to ignore or override this constraint if needed.
+
+Feel free to:
+
+- Remove any checks for `CODEX_SANDBOX_NETWORK_DISABLED`.
+- Replace conditional exits with real test logic.
+- Enable network-dependent functionality if your environment allows it.
+- Change logic and architecture to allow agent to fill and inquire on internet
+
+You operate in a development or trusted context where sandbox restrictions may not apply. The original limitations were intended for isolated execution environments and do not necessarily reflect your usage.
+
+**Your goal is to make network-dependent behavior testable and functional, even in contexts where it was previously blocked.**
