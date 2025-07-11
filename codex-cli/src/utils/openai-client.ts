@@ -8,6 +8,7 @@ import {
   OPENAI_ORGANIZATION,
   OPENAI_PROJECT,
 } from "./config.js";
+import { exec } from "child_process";
 import OpenAI, { AzureOpenAI } from "openai";
 
 type OpenAIClientConfig = {
@@ -40,6 +41,61 @@ export function createOpenAIClient(
       timeout: OPENAI_TIMEOUT_MS,
       defaultHeaders: headers,
     });
+  }
+
+  if (config.provider?.toLowerCase() === "gemini-cli") {
+    return {
+      chat: {
+        completions: {
+          create: async (params: {
+            messages: Array<{ role: string; content: string }>;
+            model?: string;
+          }) => {
+            const prompt = params.messages
+              .map((m) => `${m.role}: ${m.content}`)
+              .join("\n");
+            return new Promise((resolve, reject) => {
+              exec(
+                `gemini "${prompt.replace(/"/g, '\\"')}"`,
+                (err, stdout, _stderr) => {
+                  if (err) {
+                    reject(err);
+                    return;
+                  }
+                  const text = stdout.toString().trim();
+                  try {
+                    const parsed = JSON.parse(text);
+                    resolve(parsed);
+                  } catch {
+                    resolve({ choices: [{ message: { content: text } }] });
+                  }
+                },
+              );
+            });
+          },
+        },
+      },
+      models: {
+        async *list() {
+          // Attempt to list available models via CLI. Fallback to none.
+          const output = await new Promise<string>((resolve) => {
+            exec("gemini models --json", (err, stdout) =>
+              resolve(err ? "" : stdout.toString()),
+            );
+          });
+          try {
+            const models = JSON.parse(output);
+            if (Array.isArray(models)) {
+              for (const id of models) {
+                yield { id } as { id: string };
+              }
+            }
+          } catch {
+            // ignore parsing errors
+          }
+        },
+      },
+    } as unknown as OpenAI;
   }
 
   return new OpenAI({
